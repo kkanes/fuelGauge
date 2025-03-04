@@ -1,0 +1,82 @@
+#ifndef INTERRUPTCOUNTER_H
+#define INTERRUPTCOUNTER_H
+
+#include <Arduino.h>
+
+class InterruptCounter {
+private:
+    volatile static unsigned long counter;  // Zähler für Impulse
+    float liters;                           // Gesamtmenge in Litern
+    float flowRate;                         // Durchflussrate in L/h
+    uint8_t interruptPin;                   // Pin für den Interrupt
+    unsigned long lastTime;                  // Letzte Messzeit in Millisekunden
+    unsigned long lastCounter;               // Letzter Zählerstand
+
+public:
+    // Konstruktor
+    InterruptCounter(uint8_t pin) : interruptPin(pin), liters(0.0f), flowRate(0.0f), lastTime(0), lastCounter(0) {}
+
+    // Initialisiert den Interrupt
+    void begin() {
+        pinMode(interruptPin, INPUT_PULLUP);
+        attachInterrupt(digitalPinToInterrupt(interruptPin), ISR, FALLING);
+        lastTime = millis();  // Startzeit setzen
+    }
+
+    // Gibt den aktuellen Zählerstand zurück
+    unsigned long getCount() {
+        return counter;
+    }
+
+    // Setzt den Zähler und die Werte zurück
+    void reset() {
+        counter = 0;
+        liters = 0.0f;
+        flowRate = 0.0f;
+        lastTime = millis();
+        lastCounter = 0;
+    }
+
+    // Berechnet die Liter (1 Impuls = 1 ml = 0.001 Liter)
+    void updateLiters() {
+        liters = counter * 0.001f;
+    }
+
+    // Berechnet die Durchflussrate in L/h
+    void updateFlowRate() {
+        unsigned long currentTime = millis();
+        unsigned long elapsedTime = currentTime - lastTime;  // Zeitdifferenz in ms
+
+        if (elapsedTime > 1000) {  // Berechnung nur jede Sekunde
+            unsigned long impulses = counter - lastCounter;  // Neue Impulse seit letzter Messung
+
+            // ml in Liter umrechnen und auf eine Stunde hochrechnen
+            float litersPerSecond = impulses * 0.001f / (elapsedTime / 1000.0f);
+            flowRate = litersPerSecond * 3600.0f;  // Umrechnung in L/h
+
+            // Werte für nächste Berechnung aktualisieren
+            lastTime = currentTime;
+            lastCounter = counter;
+        }
+    }
+
+    // Gibt die gespeicherten Liter zurück
+    float getLiters() {
+        return liters;
+    }
+
+    // Gibt die Durchflussrate in L/h zurück
+    float getFlowRate() {
+        return flowRate;
+    }
+
+    // Interrupt Service Routine (ISR)
+    static void ISR() {
+        counter++;
+    }
+};
+
+// Initialisierung der statischen Variable
+volatile unsigned long InterruptCounter::counter = 0;
+
+#endif
